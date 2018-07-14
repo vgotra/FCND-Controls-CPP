@@ -70,11 +70,39 @@ VehicleCommand QuadControl::GenerateMotorCommands(float collThrustCmd, V3F momen
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
-  cmd.desiredThrustsN[0] = mass * 9.81f / 4.f; // front left
-  cmd.desiredThrustsN[1] = mass * 9.81f / 4.f; // front right
-  cmd.desiredThrustsN[2] = mass * 9.81f / 4.f; // rear left
-  cmd.desiredThrustsN[3] = mass * 9.81f / 4.f; // rear right
+     /* -----------------------------------------------
+	 * My lovely 99.99 working result - at least visually :) Dr.Manhattan approves this some kind of technical magic for fun :D Dr.Strange too :D
+	 * In QuadControlParams.txt uncomment lines with comments " for fun"  and comment lines with comment " standard way"
+	 * Try to explain this fun :) 
+	 */
+	 
+	 // it seems that trajectory flight doesn't fully depend of this method - mostly but not fully :(
+     float l = L / 1.84 * sqrtf(2);
+	 float thrust_fl = collThrustCmd * 1.3;
+	 float thrust_fr = momentCmd.x / l;
+	 float thrust_rl = momentCmd.y / l ;
+	 float thrust_rr = -(momentCmd.z / kappa);
+	 float koef = 4.;
 
+	 cmd.desiredThrustsN[0] = (thrust_fl + thrust_fr + thrust_rl + thrust_rr) / koef;
+	 cmd.desiredThrustsN[1] = (thrust_fl - thrust_fr + thrust_rl - thrust_rr) / koef;
+	 cmd.desiredThrustsN[2] = (thrust_fl + thrust_fr - thrust_rl - thrust_rr) / koef;
+	 cmd.desiredThrustsN[3] = (thrust_fl - thrust_fr - thrust_rl + thrust_rr) / koef;
+	 
+	 /* ------------------------------------------ */
+
+	/*
+	  float l = L * 2.f * sqrtf(2);
+	  float c = collThrustCmd / 4.f;
+	  float x = momentCmd.x / l;
+	  float y = momentCmd.y / l;
+	  float z = momentCmd.z / 4.f / kappa;
+
+	  cmd.desiredThrustsN[0] = c - z + y + x;
+	  cmd.desiredThrustsN[1] = c + z + y - x;
+	  cmd.desiredThrustsN[2] = c + z - y + x;
+	  cmd.desiredThrustsN[3] = c - z - y - x;
+	  */
   /////////////////////////////// END STUDENT CODE ////////////////////////////
 
   return cmd;
@@ -96,11 +124,11 @@ V3F QuadControl::BodyRateControl(V3F pqrCmd, V3F pqr)
 
   V3F momentCmd;
 
-  ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
+	////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
-  
+	momentCmd = kpPQR * (pqrCmd - pqr) * V3F(Ixx, Iyy, Izz);
 
-  /////////////////////////////// END STUDENT CODE ////////////////////////////
+	/////////////////////////////// END STUDENT CODE ////////////////////////////
 
   return momentCmd;
 }
@@ -129,7 +157,50 @@ V3F QuadControl::RollPitchControl(V3F accelCmd, Quaternion<float> attitude, floa
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
+	/* -----------------------------------------------
+	* My lovely 99.99 working result - at least visually :) Dr.Manhattan approves this some kind of technical magic for fun :D Dr.Strange too :D
+	* Uncomment lines with comments " for fun" in QuadControlParams.txt and comment lines with comment " standard way"
+	* Try to explain this fun :) 
+	*/
+  
+	float c = collThrustCmd / mass;
+	V3F b_command = accelCmd / c;
 
+	float maxTiltAngleExt = 0.84;
+	 
+	b_command.x = -CONSTRAIN(b_command.x, -maxTiltAngleExt, maxTiltAngleExt);
+	b_command.y = -CONSTRAIN(b_command.y, -maxTiltAngleExt, maxTiltAngleExt);
+
+	float r13 = R(0, 2);
+	float r23 = R(1,2);
+
+	float kpBank2 = 13.;
+	float b_x_commanded_dot = kpBank2 * (b_command.x - r13);
+	float b_y_commanded_dot = kpBank2 * (b_command.y - r23);
+
+	pqrCmd.x = (R(1, 0) * b_x_commanded_dot - R(0, 0) * b_y_commanded_dot) / R(2, 2);
+	pqrCmd.y = (R(1, 1) * b_x_commanded_dot - R(0, 1) * b_y_commanded_dot) / R(2, 2);
+	pqrCmd.z = 0.0;
+	 
+	/* ----------------------------------------------- */
+	
+	/*
+	float c = collThrustCmd / mass;
+	
+	float r13 = -CONSTRAIN(accelCmd.x / c, -maxTiltAngle, maxTiltAngle);
+	float r23 = -CONSTRAIN(accelCmd.y / c, -maxTiltAngle, maxTiltAngle);
+	    
+	if (collThrustCmd < 0)
+	{
+		r13 = 0;
+		r23 = 0;
+	}
+
+	pqrCmd.x = (-R(1, 0) * kpBank*(R(0, 2) - r13) + R(0, 0) * kpBank*(R(1, 2) - r23)) / R(2, 2);
+	pqrCmd.y = (-R(1, 1) * kpBank*(R(0, 2) - r13) + R(0, 1) * kpBank*(R(1, 2) - r23)) / R(2, 2);
+
+	pqrCmd.z = 0.0;
+	*/
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
 
@@ -161,7 +232,75 @@ float QuadControl::AltitudeControl(float posZCmd, float velZCmd, float posZ, flo
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
+	/* -----------------------------------------------
+	* My lovely 99.99 working result - at least visually :) Dr.Manhattan approves this some kind of technical magic for fun :D Dr.Strange too :D
+	* Uncomment lines with comments " for fun" in QuadControlParams.txt and comment lines with comment " standard way"
+	* Try to explain this fun :) 
+	*/
+	
+	float e_z = posZCmd - posZ;
+	float e_z_dot = velZCmd - velZ;	
+	integratedAltitudeError += e_z * dt;
 
+	// fun in any koef
+	float kp_pos_z = 8.;
+	float kp_vel_z = 13.;
+	float ki_pos_z = 1.1;
+	float p_dot_rate = 1.3;
+	float v_dot_rate_min = 8.4;
+	float v_dot_rate_max = 3.4;
+
+	float p_dot_cmd = kp_pos_z * e_z - integratedAltitudeError + velZCmd;
+	p_dot_cmd = CONSTRAIN(p_dot_cmd, -p_dot_rate, p_dot_rate);
+
+	float v_dot_cmd = kp_vel_z * (p_dot_cmd - velZ) + e_z_dot;
+	v_dot_cmd = CONSTRAIN(v_dot_cmd, -v_dot_rate_min, v_dot_rate_max);
+
+	float c = (p_dot_cmd + v_dot_cmd + accelZCmd + ki_pos_z * integratedAltitudeError - CONST_GRAVITY) / R(2, 2);
+	thrust = -c * mass;
+	
+	/* ----------------------------------------------- */
+
+	/*
+	float e_z = posZCmd - posZ;
+	
+	integratedAltitudeError += e_z * dt;
+
+	velZCmd += kpPosZ * e_z;
+	velZCmd = CONSTRAIN(velZCmd, -maxAscentRate, maxDescentRate);
+
+	float e_z_dot = velZCmd - velZ;	
+	float result_accel = (kpVelZ * e_z_dot + KiPosZ * integratedAltitudeError + accelZCmd - 9.81f) / R(2, 2) ;
+	thrust = -(result_accel * mass);
+	*/
+
+	/* -----------------------------------------------
+	 * According to formullas
+	 * Something from formullas - not sure why it doesn't work like expected - topic for improvements for simulator :)
+	*/
+	/* 
+	// where is omega natural - angular velocity or rotation rate?
+	auto e_z = posZCmd - posZ;
+	auto e_z_dot = velZCmd - velZ;	
+	auto omega_natural = e_z_dot; //velZ; 
+	auto T = 1 / omega_natural; 
+	// damping ratio 
+	auto d_r = 0.8;
+	// $K_p = \frac{1}{T^2} \cdot (1 + 2 \cdot \delta)$
+	auto k_p = (1/ pow(T, 2)) * (1 + 2 * d_r);
+	// $K_d = \frac{1}{T} \cdot (1 + 2 \cdot \delta)$
+	auto k_d = (1/ T) * (1 + 2 * d_r);
+	// $K_i = \frac{1}{T^3}$
+	auto k_i = 1 / pow(T, 3);
+	// or z_dot_dot_arg or current target acceleration 
+	auto z_dot_dot_ff = accelZCmd; 
+	auto k_p_e = k_p * e_z;
+	auto k_d_e_dot = k_d * e_z_dot;
+	auto k_i_int_dt = k_i * integratedAltitudeError;
+	auto u1_bar = k_p_e + k_d_e_dot + k_i_int_dt + z_dot_dot_ff;
+	auto u1 = mass * (u1_bar - CONST_GRAVITY);
+	thrust = u1;
+	*/
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
   
@@ -199,7 +338,44 @@ V3F QuadControl::LateralPositionControl(V3F posCmd, V3F velCmd, V3F pos, V3F vel
 
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
-  
+	/* -----------------------------------------------
+	* My lovely 99.99 working result - at least visually :) Dr.Manhattan approves this some kind of technical magic for fun :D Dr.Strange too :D
+	* Uncomment lines with comments " for fun" in QuadControlParams.txt and comment lines with comment " standard way"
+	* Try to explain this fun :) 
+	*/
+	 
+ 	float gKoef = 1.42; // hm - another fun - why 42 - because its answer :) (The Hitchhiker's Guide to the Galaxy)
+
+	V3F err = posCmd - pos;
+	velCmd += gKoef * err;
+	V3F err_dot = velCmd - vel;
+
+	V3F p_term = kpPosXY * err * gKoef;
+	V3F d_term = kpVelXY * err_dot * gKoef;
+	accelCmd = p_term + d_term + accelCmdFF;
+	accelCmd.x = CONSTRAIN(accelCmd.x, -maxAccelXY, maxAccelXY);
+	accelCmd.y = CONSTRAIN(accelCmd.y, -maxAccelXY, maxAccelXY);
+	accelCmd.z = 0;
+	 
+	/* ----------------------------------------------- */
+
+	/*
+	V3F pos_err = posCmd - pos;
+	V3F vel_component = kpPosXY * pos_err + velCmd;
+	if (vel_component.magXY() > maxSpeedXY)
+	{
+	   vel_component *= maxSpeedXY / vel_component.mag();
+	}
+
+	V3F acc_component = kpVelXY * (vel_component - vel);
+	accelCmd += acc_component;
+	if (accelCmd.magXY() > maxAccelXY)
+	{
+	   accelCmd *= maxAccelXY / accelCmd.magXY();
+	}
+
+	accelCmd.z = 0;
+	*/
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
 
@@ -222,6 +398,9 @@ float QuadControl::YawControl(float yawCmd, float yaw)
   float yawRateCmd=0;
   ////////////////////////////// BEGIN STUDENT CODE ///////////////////////////
 
+	float yaw_error = yawCmd - yaw;
+	yaw_error = fmodf(yaw_error, F_PI);
+	yawRateCmd = kpYaw * yaw_error;
 
   /////////////////////////////// END STUDENT CODE ////////////////////////////
 
